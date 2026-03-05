@@ -5,10 +5,9 @@ import SearchBar from "@/components/SearchBar";
 import RouteCard from "@/components/RouteCard";
 import ModeToggle, { TravelMode } from "@/components/ModeToggle";
 import AqiBadge from "@/components/AqiBadge";
-import { generateMockRoutes, RouteData } from "@/lib/routeScoring";
+import { generateMockRoutes, RouteData, BORIVALI, MUMBAI_PLACES } from "@/lib/routeScoring";
 import { Layers, BarChart3, Leaf } from "lucide-react";
-
-const DEFAULT_LOCATION: [number, number] = [-73.985, 40.748]; // NYC
+import { toast } from "sonner";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -17,48 +16,60 @@ const Index = () => {
   const [selectedRoute, setSelectedRoute] = useState<string | null>(null);
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [showRoutes, setShowRoutes] = useState(false);
+  const [destination, setDestination] = useState<[number, number] | null>(null);
+  const [destinationName, setDestinationName] = useState("");
 
   const currentAqi = useMemo(() => Math.round(40 + Math.random() * 60), []);
 
   const handleSearch = useCallback((query: string) => {
-    // Simulate destination offset
-    const dest: [number, number] = [
-      DEFAULT_LOCATION[0] + (Math.random() - 0.5) * 0.03,
-      DEFAULT_LOCATION[1] + (Math.random() - 0.5) * 0.03,
-    ];
-    const newRoutes = generateMockRoutes(DEFAULT_LOCATION, dest);
-    setRoutes(newRoutes);
-    setSelectedRoute("cleanest");
-    setShowRoutes(true);
+    const key = query.toLowerCase().trim();
+    const place = Object.entries(MUMBAI_PLACES).find(([k]) => key.includes(k) || k.includes(key));
+
+    if (place) {
+      const [, info] = place;
+      const dest: [number, number] = [info.lat, info.lng];
+      setDestination(dest);
+      setDestinationName(info.name);
+      const newRoutes = generateMockRoutes(BORIVALI, dest);
+      setRoutes(newRoutes);
+      setSelectedRoute("cleanest");
+      setShowRoutes(true);
+      toast.success(`Route from Borivali → ${info.name}`);
+    } else {
+      toast.error(`"${query}" not found in Mumbai. Try: Gateway of India, Marine Drive, Bandra, Juhu, Andheri...`);
+    }
   }, []);
 
   const handleFindHealthiest = useCallback(() => {
-    const dest: [number, number] = [
-      DEFAULT_LOCATION[0] + 0.012,
-      DEFAULT_LOCATION[1] + 0.008,
-    ];
-    const newRoutes = generateMockRoutes(DEFAULT_LOCATION, dest);
+    // Default: route to Marine Drive
+    const dest: [number, number] = [18.9432, 72.8235];
+    setDestination(dest);
+    setDestinationName("Marine Drive");
+    const newRoutes = generateMockRoutes(BORIVALI, dest);
     setRoutes(newRoutes);
     setSelectedRoute("cleanest");
     setShowRoutes(true);
+    toast.success("Healthiest route from Borivali → Marine Drive");
   }, []);
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-background">
-      {/* Map */}
       <MapView
         routes={routes}
         selectedRoute={selectedRoute}
         onSelectRoute={setSelectedRoute}
         showHeatmap={showHeatmap}
-        userLocation={DEFAULT_LOCATION}
+        userLocation={BORIVALI}
+        destination={destination}
+        destinationName={destinationName}
       />
 
       {/* Top overlay */}
-      <div className="absolute top-0 left-0 right-0 z-10 p-4 space-y-3">
+      <div className="absolute top-0 left-0 right-0 z-[1000] p-4 space-y-3">
         <div className="flex items-center gap-2 mb-1">
           <Leaf className="w-5 h-5 text-primary" />
           <span className="font-display font-bold text-foreground text-lg">BreatheMap</span>
+          <span className="text-[10px] text-muted-foreground ml-1">Mumbai</span>
         </div>
         <SearchBar onSearch={handleSearch} />
         <div className="flex items-center justify-between">
@@ -83,7 +94,7 @@ const Index = () => {
       </div>
 
       {/* Bottom overlay */}
-      <div className="absolute bottom-0 left-0 right-0 z-10 p-4 space-y-3 animate-slide-up">
+      <div className="absolute bottom-0 left-0 right-0 z-[1000] p-4 space-y-3 animate-slide-up">
         {!showRoutes && (
           <>
             <AqiBadge aqi={currentAqi} />
@@ -100,10 +111,11 @@ const Index = () => {
           <div className="space-y-2">
             <div className="flex items-center justify-between mb-1">
               <p className="text-xs text-muted-foreground font-body">
-                {mode === "jog" ? "🏃 Jogger Mode – Parks prioritized" : mode === "cycle" ? "🚴 Cyclist Mode – Bike lanes prioritized" : "🚗 Driving Mode"}
+                {mode === "jog" ? "🏃 Jogger – Parks prioritized" : mode === "cycle" ? "🚴 Cyclist – Bike lanes" : "🚗 Driving"}
+                {destinationName && <span className="ml-1 font-medium text-foreground">· Borivali → {destinationName}</span>}
               </p>
               <button
-                onClick={() => { setShowRoutes(false); setRoutes([]); }}
+                onClick={() => { setShowRoutes(false); setRoutes([]); setDestination(null); }}
                 className="text-xs text-muted-foreground hover:text-foreground"
               >
                 Clear
